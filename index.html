@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ECW Content Dashboard</title>
+<style>
+  :root{
+    --bg:#faf8f3; --card:#ffffff; --border:#e2ddd0; --text:#2c2a26; --text-soft:#6b6657;
+    --green-bg:#e7f3e3; --green-text:#2f6b2a;
+    --purple-bg:#eee8fb; --purple-text:#5b3aa8;
+    --red-bg:#fbeaea; --red-text:#a3322f;
+    --amber-bg:#fdf2dc; --amber-text:#8a5a0b;
+    --accent:#7a5230;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    background:var(--bg); color:var(--text); padding:24px 16px 60px;
+  }
+  .wrap{max-width:1000px;margin:0 auto;}
+  h1{font-size:22px;font-weight:600;margin:0 0 4px;}
+  .sub{color:var(--text-soft);font-size:14px;margin:0 0 24px;}
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:28px;}
+  .metric{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+  .metric .num{font-size:26px;font-weight:600;}
+  .metric .lbl{font-size:13px;color:var(--text-soft);margin-top:2px;}
+  .tabs{display:flex;gap:4px;margin-bottom:18px;border-bottom:1px solid var(--border);}
+  .tab{padding:10px 16px;font-size:14px;cursor:pointer;border:none;background:none;color:var(--text-soft);border-bottom:2px solid transparent;margin-bottom:-1px;font-family:inherit;}
+  .tab.active{color:var(--text);border-bottom-color:var(--accent);font-weight:600;}
+  input.search{width:100%;padding:9px 12px;font-size:14px;border:1px solid var(--border);border-radius:8px;margin-bottom:16px;font-family:inherit;background:var(--card);color:var(--text);}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:10px;}
+  .card-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:8px;}
+  .card-head h3{font-size:15px;margin:0;font-weight:600;}
+  .card-head .meta{font-size:13px;color:var(--text-soft);margin-top:2px;}
+  .badge{font-size:12px;padding:4px 10px;border-radius:6px;font-weight:600;white-space:nowrap;}
+  .b-posted{background:var(--green-bg);color:var(--green-text);}
+  .b-scheduled{background:var(--purple-bg);color:var(--purple-text);}
+  .b-not_scheduled{background:var(--red-bg);color:var(--red-text);}
+  .b-due{background:var(--amber-bg);color:var(--amber-text);}
+  .platform-grid{border-top:1px solid var(--border);padding-top:10px;display:flex;flex-direction:column;gap:6px;}
+  .prow{display:flex;justify-content:space-between;font-size:13px;align-items:center;}
+  .prow .pname{color:var(--text);}
+  .prow .pday{color:var(--text-soft);font-size:12px;}
+  .prow .pval{color:var(--text-soft);font-style:italic;}
+  .empty{text-align:center;color:var(--text-soft);padding:40px 0;font-size:14px;}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px;font-size:12px;color:var(--text-soft);}
+  .legend span{display:inline-flex;align-items:center;gap:5px;}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block;}
+  .dot-green{background:#2f6b2a;}
+  .dot-purple{background:#5b3aa8;}
+  .dot-red{background:#a3322f;}
+  footer{text-align:center;color:var(--text-soft);font-size:12px;margin-top:40px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Excerpts of Christian Wisdom — Content Dashboard</h1>
+  <p class="sub">Stand on ground two thousand years deep.</p>
+
+  <div id="metrics"></div>
+
+  <div class="legend">
+    <span><span class="dot dot-green"></span>Posted</span>
+    <span><span class="dot dot-purple"></span>Created &amp; scheduled</span>
+    <span><span class="dot dot-red"></span>Created, not scheduled</span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="today">Today / this week</button>
+    <button class="tab" data-tab="all">All weeks</button>
+  </div>
+
+  <div id="content"></div>
+
+  <footer>Last data update: see CHANGELOG. Edit data.js to update.</footer>
+</div>
+
+<script src="data.js"></script>
+<script>
+const PLATFORM_LABELS = {
+  youtube: ['YouTube Shorts','Sun'],
+  morningReading: ['Morning Reading','Mon 7am'],
+  quoteCard: ['IG Quote Card','Mon 7-8pm'],
+  linkedinNewsletter: ['LinkedIn Newsletter','Mon'],
+  linkedin: ['LinkedIn','Wed 9am'],
+  facebookDeepDive: ['Facebook Deep Dive','Wed 9am'],
+  instagramReel: ['Instagram Reel','Thu 7pm'],
+  carousel: ['IG Carousel','Thu 7pm'],
+  facebookReflection: ['Facebook Reflection','Fri 10am']
+};
+
+const STATUS_LABEL = {posted:'Posted', scheduled:'Scheduled', not_scheduled:'Not scheduled'};
+
+let state = { tab: 'today', search: '' };
+
+function parseDate(s){ return new Date(s + 'T00:00:00'); }
+function today(){ const d = new Date(); d.setHours(0,0,0,0); return d; }
+function daysUntil(dateStr){
+  const d = parseDate(dateStr);
+  return Math.round((d - today()) / 86400000);
+}
+function fmtDate(dateStr){
+  return parseDate(dateStr).toLocaleDateString('en-US', {month:'short', day:'numeric'});
+}
+
+function renderMetrics(){
+  const total = ECW_DATA.length;
+  const posted = ECW_DATA.filter(w => w.rowStatus === 'posted').length;
+  const upcoming = ECW_DATA.filter(w => { const d = daysUntil(w.weekOf); return d >= -7 && d <= 14; }).length;
+  const needsAttention = ECW_DATA.filter(w => w.rowStatus === 'not_scheduled').length;
+  document.getElementById('metrics').innerHTML = `
+    <div class="metrics">
+      <div class="metric"><div class="num">${total}</div><div class="lbl">Weeks tracked</div></div>
+      <div class="metric"><div class="num">${posted}</div><div class="lbl">Fully posted</div></div>
+      <div class="metric"><div class="num">${upcoming}</div><div class="lbl">Near term (±2 wks)</div></div>
+      <div class="metric"><div class="num">${needsAttention}</div><div class="lbl">Not yet scheduled</div></div>
+    </div>`;
+}
+
+function platformRows(week){
+  return Object.entries(PLATFORM_LABELS).map(([key, [label, day]]) => {
+    const val = week.platforms[key];
+    if (!val) return '';
+    return `<div class="prow">
+      <span class="pname">${label} <span class="pday">(${day})</span></span>
+      <span class="pval">${val}</span>
+    </div>`;
+  }).join('');
+}
+
+function weekCard(week){
+  const d = daysUntil(week.weekOf);
+  let dueBadge = '';
+  if (d < 0 && week.rowStatus !== 'posted') {
+    dueBadge = `<span class="badge b-due">Overdue</span>`;
+  } else if (d >= 0 && d <= 6) {
+    dueBadge = `<span class="badge b-due">This week</span>`;
+  }
+  const title = week.title || '(untitled week)';
+  return `<div class="card">
+    <div class="card-head">
+      <div>
+        <h3>${title}</h3>
+        <div class="meta">${week.medNum || ''} ${week.medNum ? '·' : ''} Week of ${fmtDate(week.weekOf)}</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+        ${dueBadge}
+        <span class="badge b-${week.rowStatus}">${STATUS_LABEL[week.rowStatus]}</span>
+      </div>
+    </div>
+    <div class="platform-grid">${platformRows(week) || '<div class="prow"><span class="pval">No platform content recorded yet.</span></div>'}</div>
+  </div>`;
+}
+
+function renderToday(){
+  const items = ECW_DATA.filter(w => {
+    const d = daysUntil(w.weekOf);
+    return d >= -7 && d <= 14;
+  }).sort((a,b) => parseDate(a.weekOf) - parseDate(b.weekOf));
+  if (!items.length) return `<div class="empty">Nothing in the near-term window.</div>`;
+  return items.map(weekCard).join('');
+}
+
+function renderAll(){
+  let items = ECW_DATA.slice().sort((a,b) => parseDate(b.weekOf) - parseDate(a.weekOf));
+  if (state.search.trim()) {
+    const q = state.search.toLowerCase();
+    items = items.filter(w =>
+      (w.title || '').toLowerCase().includes(q) ||
+      Object.values(w.platforms).some(v => v && v.toLowerCase().includes(q))
+    );
+  }
+  const searchBox = `<input class="search" type="text" placeholder="Search by father, title, or content..." value="${state.search}" id="search-input" />`;
+  if (!items.length) return searchBox + `<div class="empty">No matches.</div>`;
+  return searchBox + items.map(weekCard).join('');
+}
+
+function render(){
+  renderMetrics();
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === state.tab));
+  const content = document.getElementById('content');
+  content.innerHTML = state.tab === 'today' ? renderToday() : renderAll();
+
+  const search = document.getElementById('search-input');
+  if (search) {
+    search.oninput = () => { state.search = search.value; render(); };
+    search.focus();
+    search.setSelectionRange(state.search.length, state.search.length);
+  }
+}
+
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.onclick = () => { state.tab = btn.dataset.tab; state.search=''; render(); };
+});
+
+render();
+</script>
+</body>
+</html>
