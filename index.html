@@ -80,6 +80,16 @@
   .s-posted{background:var(--green-bg);color:var(--green-text);}
   .s-scheduled{background:var(--purple-bg);color:var(--purple-text);}
   .s-created{background:var(--red-bg);color:var(--red-text);}
+  .remove-platform-btn{
+    background:none;border:none;color:var(--text-soft);font-size:16px;line-height:1;
+    cursor:pointer;padding:0 2px;font-family:inherit;
+  }
+  .remove-platform-btn:hover{color:var(--red-text);}
+  .add-platform-row{padding-top:4px;}
+  .add-platform-select{
+    width:100%;padding:6px 8px;font-size:13px;border:1px dashed var(--border);border-radius:7px;
+    font-family:inherit;background:#fff;color:var(--text-soft);cursor:pointer;
+  }
   .empty{text-align:center;color:var(--text-soft);padding:40px 0;font-size:14px;}
   .legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px;font-size:12px;color:var(--text-soft);}
   .legend span{display:inline-flex;align-items:center;gap:5px;}
@@ -243,6 +253,25 @@ function weekOverallStatus(week){
   return 'created';
 }
 
+function weekStatusBreakdown(week){
+  const vals = Object.values(week.platforms).filter(p => p).map(p => p.status);
+  if (!vals.length) return { text: 'No platforms', cls: 'created' };
+  const counts = { posted:0, scheduled:0, created:0 };
+  vals.forEach(v => counts[v]++);
+  const uniqueStatuses = Object.keys(counts).filter(k => counts[k] > 0);
+  if (uniqueStatuses.length === 1) {
+    return { text: STATUS_LABEL[uniqueStatuses[0]], cls: uniqueStatuses[0] };
+  }
+  const parts = [];
+  if (counts.posted) parts.push(`${counts.posted} posted`);
+  if (counts.scheduled) parts.push(`${counts.scheduled} scheduled`);
+  if (counts.created) parts.push(`${counts.created} created`);
+  // badge color reflects the least-progressed status present, so a mixed week
+  // doesn't look more "done" than it is
+  const cls = counts.created ? 'created' : (counts.scheduled ? 'scheduled' : 'posted');
+  return { text: parts.join(', '), cls };
+}
+
 function renderMetrics(){
   const total = DATA.length;
   const posted = DATA.filter(w => weekOverallStatus(w) === 'posted').length;
@@ -258,7 +287,7 @@ function renderMetrics(){
 }
 
 function platformRows(week, weekIdx){
-  return Object.entries(PLATFORM_LABELS).map(([key, [label, day]]) => {
+  const rows = Object.entries(PLATFORM_LABELS).map(([key, [label, day]]) => {
     const p = week.platforms[key];
     if (!p) return '';
     return `<div class="prow">
@@ -270,14 +299,27 @@ function platformRows(week, weekIdx){
           <option value="scheduled" ${p.status==='scheduled'?'selected':''}>Scheduled</option>
           <option value="posted" ${p.status==='posted'?'selected':''}>Posted</option>
         </select>
+        <button type="button" class="remove-platform-btn" data-week="${weekIdx}" data-platform="${key}" title="Remove this platform">&times;</button>
       </span>
     </div>`;
   }).join('');
+
+  const missing = Object.entries(PLATFORM_LABELS).filter(([key]) => !week.platforms[key]);
+  let addRow = '';
+  if (missing.length) {
+    addRow = `<div class="prow add-platform-row">
+      <select class="add-platform-select" data-week="${weekIdx}" style="flex:1;">
+        <option value="">+ Add a platform to this week...</option>
+        ${missing.map(([key,[label,day]]) => `<option value="${key}">${label} (${day})</option>`).join('')}
+      </select>
+    </div>`;
+  }
+  return rows + addRow;
 }
 
 function weekCard(week){
   const weekIdx = DATA.indexOf(week);
-  const ov = weekOverallStatus(week);
+  const breakdown = weekStatusBreakdown(week);
   const isOpen = state.openCards.has(weekIdx);
   const title = week.title || '(untitled week)';
   const rows = platformRows(week, weekIdx);
@@ -287,10 +329,10 @@ function weekCard(week){
         <h3>${title}</h3>
         <div class="meta">${week.medNum || ''} ${week.medNum ? '·' : ''} Week of ${fmtDate(week.weekOf)}</div>
       </div>
-      <span class="badge b-${ov}">${STATUS_LABEL[ov]}</span>
+      <span class="badge b-${breakdown.cls}">${breakdown.text}</span>
     </div>
     <div class="platform-grid ${isOpen ? 'open' : ''}" id="grid-${weekIdx}">
-      ${rows || '<div class="prow"><span class="pval">No platform content recorded yet.</span></div>'}
+      ${rows}
     </div>
   </div>`;
 }
@@ -310,10 +352,11 @@ function renderAll(){
     const q = state.search.toLowerCase();
     items = items.filter(w =>
       (w.title || '').toLowerCase().includes(q) ||
+      (w.medNum || '').toLowerCase().includes(q) ||
       Object.values(w.platforms).some(p => p && p.father.toLowerCase().includes(q))
     );
   }
-  const searchBox = `<input class="search" type="text" placeholder="Search by father, title, or content..." value="${state.search}" id="search-input" />`;
+  const searchBox = `<input class="search" type="text" placeholder="Search by father, title, volume, or content..." value="${state.search}" id="search-input" />`;
   if (!items.length) return searchBox + `<div class="empty">No matches.</div>`;
   return searchBox + items.map(weekCard).join('');
 }
@@ -350,9 +393,39 @@ function render(){
       renderMetrics();
       const card = sel.closest('.card');
       const badge = card.querySelector('.badge');
-      const ov = weekOverallStatus(DATA[w]);
-      badge.className = 'badge b-' + ov;
-      badge.textContent = STATUS_LABEL[ov];
+      const breakdown = weekStatusBreakdown(DATA[w]);
+      badge.className = 'badge b-' + breakdown.cls;
+      badge.textContent = breakdown.text;
+    });
+  });
+
+  content.querySelectorAll('.remove-platform-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const w = parseInt(btn.dataset.week);
+      const p = btn.dataset.platform;
+      const label = PLATFORM_LABELS[p][0];
+      if (!confirm(`Remove ${label} from this week?`)) return;
+      DATA[w].platforms[p] = null;
+      saveData();
+      render();
+    });
+  });
+
+  content.querySelectorAll('.add-platform-select').forEach(sel => {
+    sel.addEventListener('click', e => e.stopPropagation());
+    sel.addEventListener('change', () => {
+      if (!sel.value) return;
+      const w = parseInt(sel.dataset.week);
+      const key = sel.value;
+      // reuse the first existing platform's father name as the default, since
+      // a week is almost always one father across every platform
+      const existing = Object.values(DATA[w].platforms).find(p => p);
+      const father = existing ? existing.father : '';
+      DATA[w].platforms[key] = { father, status: 'created' };
+      saveData();
+      state.openCards.add(w);
+      render();
     });
   });
 
