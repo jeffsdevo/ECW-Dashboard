@@ -7,73 +7,184 @@
 <style>
   :root{
     --bg:#faf8f3; --card:#ffffff; --border:#e2ddd0; --text:#2c2a26; --text-soft:#6b6657;
-    --green-bg:#e7f3e3; --green-text:#2f6b2a;
-    --purple-bg:#eee8fb; --purple-text:#5b3aa8;
-    --red-bg:#fbeaea; --red-text:#a3322f;
-    --amber-bg:#fdf2dc; --amber-text:#8a5a0b;
+    --green-bg:#dcf0e4; --green-text:#1e7d4a; --green-dot:#34a35f;
+    --purple-bg:#eee8fb; --purple-text:#5b3aa8; --purple-dot:#7c52d6;
+    --red-bg:#fbeaea; --red-text:#a3322f; --red-dot:#c4453f;
     --accent:#7a5230;
   }
   *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;min-height:100%;}
   body{
-    margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-    background:var(--bg); color:var(--text); padding:24px 16px 60px;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    color:var(--text);
+    position:relative;
+    padding:24px 16px 60px;
   }
-  .wrap{max-width:1000px;margin:0 auto;}
+  body::before{
+    content:"";
+    position:fixed;
+    top:0; left:0; right:0; bottom:0;
+    background-image:url('bg.jpg');
+    background-size:cover;
+    background-position:center;
+    opacity:0.16;
+    z-index:-2;
+  }
+  body::after{
+    content:"";
+    position:fixed;
+    top:0; left:0; right:0; bottom:0;
+    background:var(--bg);
+    opacity:0.78;
+    z-index:-1;
+  }
+  .wrap{max-width:1000px;margin:0 auto;position:relative;}
+  .top-row{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;}
   h1{font-size:22px;font-weight:600;margin:0 0 4px;}
   .sub{color:var(--text-soft);font-size:14px;margin:0 0 24px;}
+  .add-btn{
+    background:var(--accent);color:#fff;border:none;border-radius:8px;
+    padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap;
+    font-family:inherit;
+  }
+  .add-btn:hover{opacity:0.9;}
   .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:28px;}
   .metric{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
   .metric .num{font-size:26px;font-weight:600;}
   .metric .lbl{font-size:13px;color:var(--text-soft);margin-top:2px;}
-  .tabs{display:flex;gap:4px;margin-bottom:18px;border-bottom:1px solid var(--border);}
+  .tab-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;border-bottom:1px solid var(--border);margin-bottom:18px;}
+  .tabs{display:flex;gap:4px;}
   .tab{padding:10px 16px;font-size:14px;cursor:pointer;border:none;background:none;color:var(--text-soft);border-bottom:2px solid transparent;margin-bottom:-1px;font-family:inherit;}
   .tab.active{color:var(--text);border-bottom-color:var(--accent);font-weight:600;}
+  .add-btn-inline{margin-bottom:10px;}
   input.search{width:100%;padding:9px 12px;font-size:14px;border:1px solid var(--border);border-radius:8px;margin-bottom:16px;font-family:inherit;background:var(--card);color:var(--text);}
   .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:10px;}
-  .card-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:8px;}
+  .card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;cursor:pointer;}
   .card-head h3{font-size:15px;margin:0;font-weight:600;}
   .card-head .meta{font-size:13px;color:var(--text-soft);margin-top:2px;}
   .badge{font-size:12px;padding:4px 10px;border-radius:6px;font-weight:600;white-space:nowrap;}
   .b-posted{background:var(--green-bg);color:var(--green-text);}
   .b-scheduled{background:var(--purple-bg);color:var(--purple-text);}
-  .b-not_scheduled{background:var(--red-bg);color:var(--red-text);}
-  .b-due{background:var(--amber-bg);color:var(--amber-text);}
-  .platform-grid{border-top:1px solid var(--border);padding-top:10px;display:flex;flex-direction:column;gap:6px;}
-  .prow{display:flex;justify-content:space-between;font-size:13px;align-items:center;}
+  .b-created{background:var(--red-bg);color:var(--red-text);}
+  .more-toggle{font-size:12px;color:var(--accent);background:none;border:none;cursor:pointer;padding:0;font-family:inherit;text-decoration:underline;margin-top:6px;}
+  .platform-grid{border-top:1px solid var(--border);padding-top:10px;margin-top:10px;display:none;flex-direction:column;gap:8px;}
+  .platform-grid.open{display:flex;}
+  .prow{display:flex;justify-content:space-between;font-size:13px;align-items:center;gap:8px;flex-wrap:wrap;}
   .prow .pname{color:var(--text);}
   .prow .pday{color:var(--text-soft);font-size:12px;}
-  .prow .pval{color:var(--text-soft);font-style:italic;}
+  .prow .pright{display:flex;align-items:center;gap:8px;}
+  .pval{color:var(--text-soft);font-style:italic;}
+  select.status-select{
+    font-size:12px;font-weight:600;padding:4px 8px;border-radius:6px;border:none;
+    font-family:inherit;cursor:pointer;
+  }
+  .s-posted{background:var(--green-bg);color:var(--green-text);}
+  .s-scheduled{background:var(--purple-bg);color:var(--purple-text);}
+  .s-created{background:var(--red-bg);color:var(--red-text);}
   .empty{text-align:center;color:var(--text-soft);padding:40px 0;font-size:14px;}
   .legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px;font-size:12px;color:var(--text-soft);}
   .legend span{display:inline-flex;align-items:center;gap:5px;}
   .dot{width:9px;height:9px;border-radius:50%;display:inline-block;}
-  .dot-green{background:#2f6b2a;}
-  .dot-purple{background:#5b3aa8;}
-  .dot-red{background:#a3322f;}
+  .dot-green{background:var(--green-dot);}
+  .dot-purple{background:var(--purple-dot);}
+  .dot-red{background:var(--red-dot);}
   footer{text-align:center;color:var(--text-soft);font-size:12px;margin-top:40px;}
+
+  /* Modal */
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4);
+    align-items:center; justify-content:center; z-index:100; padding:16px;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal{
+    background:var(--card); border-radius:12px; padding:24px; max-width:480px; width:100%;
+    max-height:88vh; overflow-y:auto;
+  }
+  .modal h2{font-size:18px;margin:0 0 16px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:13px;font-weight:600;margin-bottom:5px;color:var(--text);}
+  .field input, .field select{
+    width:100%;padding:8px 10px;font-size:14px;border:1px solid var(--border);border-radius:7px;
+    font-family:inherit;background:#fff;color:var(--text);
+  }
+  .field-hint{font-size:12px;color:var(--text-soft);margin-top:4px;}
+  .platform-check-row{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;}
+  .platform-check-row input[type=checkbox]{width:auto;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;}
+  .btn-secondary{background:none;border:1px solid var(--border);border-radius:8px;padding:9px 14px;font-size:14px;cursor:pointer;font-family:inherit;color:var(--text-soft);}
+  .btn-primary{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;}
+  .override-toggle{font-size:12px;color:var(--accent);background:none;border:none;cursor:pointer;padding:0;font-family:inherit;text-decoration:underline;margin-top:8px;}
+  .override-fields{display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+  .override-fields.open{display:block;}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Excerpts of Christian Wisdom — Content Dashboard</h1>
-  <p class="sub">Stand on ground two thousand years deep.</p>
+  <div class="top-row">
+    <div>
+      <h1>Excerpts of Christian Wisdom — Content Dashboard</h1>
+      <p class="sub">Stand on ground two thousand years deep.</p>
+    </div>
+    <button class="add-btn" id="add-week-btn">+ Add new week</button>
+  </div>
 
   <div id="metrics"></div>
 
   <div class="legend">
     <span><span class="dot dot-green"></span>Posted</span>
-    <span><span class="dot dot-purple"></span>Created &amp; scheduled</span>
-    <span><span class="dot dot-red"></span>Created, not scheduled</span>
+    <span><span class="dot dot-purple"></span>Scheduled</span>
+    <span><span class="dot dot-red"></span>Created</span>
   </div>
 
-  <div class="tabs">
-    <button class="tab active" data-tab="today">Today / this week</button>
-    <button class="tab" data-tab="all">All weeks</button>
+  <div class="tab-row">
+    <div class="tabs">
+      <button class="tab active" data-tab="today">Today / this week</button>
+      <button class="tab" data-tab="all">All weeks</button>
+    </div>
   </div>
 
   <div id="content"></div>
 
-  <footer>Last data update: see CHANGELOG. Edit data.js to update.</footer>
+  <footer>Excerpts of Christian Wisdom — Jeff Thompson</footer>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <h2 id="modal-title">Add new week</h2>
+    <form id="week-form">
+      <div class="field">
+        <label for="f-weekOf">Week starting</label>
+        <input type="date" id="f-weekOf" required>
+      </div>
+      <div class="field">
+        <label for="f-medNum">Meditation #</label>
+        <input type="text" id="f-medNum" placeholder="e.g. Book III 47">
+      </div>
+      <div class="field">
+        <label for="f-title">Meditation title</label>
+        <input type="text" id="f-title" placeholder="e.g. Freedom to Reject the Better Way" required>
+      </div>
+      <div class="field">
+        <label for="f-father">Church father (applies to all platforms below)</label>
+        <input type="text" id="f-father" placeholder="e.g. Methodius of Olympus" required>
+      </div>
+      <div class="field">
+        <label for="f-status">Status for all platforms</label>
+        <select id="f-status">
+          <option value="created">Created</option>
+          <option value="scheduled">Scheduled</option>
+          <option value="posted">Posted</option>
+        </select>
+      </div>
+      <button type="button" class="override-toggle" id="override-toggle-btn">Customize individual platforms instead</button>
+      <div class="override-fields" id="override-fields"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="modal-cancel">Cancel</button>
+        <button type="submit" class="btn-primary" id="modal-save">Save week</button>
+      </div>
+    </form>
+  </div>
 </div>
 
 <script src="data.js"></script>
@@ -89,10 +200,23 @@ const PLATFORM_LABELS = {
   carousel: ['IG Carousel','Thu 7pm'],
   facebookReflection: ['Facebook Reflection','Fri 10am']
 };
+const STATUS_LABEL = {posted:'Posted', scheduled:'Scheduled', created:'Created'};
+const STORAGE_KEY = 'ecw-dashboard-data';
 
-const STATUS_LABEL = {posted:'Posted', scheduled:'Scheduled', not_scheduled:'Not scheduled'};
+let state = { tab: 'today', search: '', openCards: new Set(), editingIndex: null };
 
-let state = { tab: 'today', search: '' };
+function loadData(){
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch(e) {}
+  return ECW_DATA;
+}
+function saveData(){
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA)); } catch(e) {}
+}
+
+let DATA = loadData();
 
 function parseDate(s){ return new Date(s + 'T00:00:00'); }
 function today(){ const d = new Date(); d.setHours(0,0,0,0); return d; }
@@ -104,57 +228,69 @@ function fmtDate(dateStr){
   return parseDate(dateStr).toLocaleDateString('en-US', {month:'short', day:'numeric'});
 }
 
+function weekOverallStatus(week){
+  const vals = Object.values(week.platforms).filter(p => p).map(p => p.status);
+  if (!vals.length) return 'created';
+  if (vals.every(v => v === 'posted')) return 'posted';
+  if (vals.some(v => v === 'posted' || v === 'scheduled')) return 'scheduled';
+  return 'created';
+}
+
 function renderMetrics(){
-  const total = ECW_DATA.length;
-  const posted = ECW_DATA.filter(w => w.rowStatus === 'posted').length;
-  const upcoming = ECW_DATA.filter(w => { const d = daysUntil(w.weekOf); return d >= -7 && d <= 14; }).length;
-  const needsAttention = ECW_DATA.filter(w => w.rowStatus === 'not_scheduled').length;
+  const total = DATA.length;
+  const posted = DATA.filter(w => weekOverallStatus(w) === 'posted').length;
+  const upcoming = DATA.filter(w => { const d = daysUntil(w.weekOf); return d >= -7 && d <= 14; }).length;
+  const notScheduled = DATA.filter(w => weekOverallStatus(w) === 'created').length;
   document.getElementById('metrics').innerHTML = `
     <div class="metrics">
       <div class="metric"><div class="num">${total}</div><div class="lbl">Weeks tracked</div></div>
       <div class="metric"><div class="num">${posted}</div><div class="lbl">Fully posted</div></div>
       <div class="metric"><div class="num">${upcoming}</div><div class="lbl">Near term (±2 wks)</div></div>
-      <div class="metric"><div class="num">${needsAttention}</div><div class="lbl">Not yet scheduled</div></div>
+      <div class="metric"><div class="num">${notScheduled}</div><div class="lbl">Not yet scheduled</div></div>
     </div>`;
 }
 
-function platformRows(week){
+function platformRows(week, weekIdx){
   return Object.entries(PLATFORM_LABELS).map(([key, [label, day]]) => {
-    const val = week.platforms[key];
-    if (!val) return '';
+    const p = week.platforms[key];
+    if (!p) return '';
     return `<div class="prow">
       <span class="pname">${label} <span class="pday">(${day})</span></span>
-      <span class="pval">${val}</span>
+      <span class="pright">
+        <span class="pval">${p.father}</span>
+        <select class="status-select s-${p.status}" data-week="${weekIdx}" data-platform="${key}">
+          <option value="created" ${p.status==='created'?'selected':''}>Created</option>
+          <option value="scheduled" ${p.status==='scheduled'?'selected':''}>Scheduled</option>
+          <option value="posted" ${p.status==='posted'?'selected':''}>Posted</option>
+        </select>
+      </span>
     </div>`;
   }).join('');
 }
 
 function weekCard(week){
-  const d = daysUntil(week.weekOf);
-  let dueBadge = '';
-  if (d < 0 && week.rowStatus !== 'posted') {
-    dueBadge = `<span class="badge b-due">Overdue</span>`;
-  } else if (d >= 0 && d <= 6) {
-    dueBadge = `<span class="badge b-due">This week</span>`;
-  }
+  const weekIdx = DATA.indexOf(week);
+  const ov = weekOverallStatus(week);
+  const isOpen = state.openCards.has(weekIdx);
   const title = week.title || '(untitled week)';
+  const rows = platformRows(week, weekIdx);
   return `<div class="card">
-    <div class="card-head">
+    <div class="card-head" data-toggle="${weekIdx}">
       <div>
         <h3>${title}</h3>
         <div class="meta">${week.medNum || ''} ${week.medNum ? '·' : ''} Week of ${fmtDate(week.weekOf)}</div>
+        <button class="more-toggle" data-toggle="${weekIdx}">${isOpen ? 'less' : 'more'}</button>
       </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
-        ${dueBadge}
-        <span class="badge b-${week.rowStatus}">${STATUS_LABEL[week.rowStatus]}</span>
-      </div>
+      <span class="badge b-${ov}">${STATUS_LABEL[ov]}</span>
     </div>
-    <div class="platform-grid">${platformRows(week) || '<div class="prow"><span class="pval">No platform content recorded yet.</span></div>'}</div>
+    <div class="platform-grid ${isOpen ? 'open' : ''}" id="grid-${weekIdx}">
+      ${rows || '<div class="prow"><span class="pval">No platform content recorded yet.</span></div>'}
+    </div>
   </div>`;
 }
 
 function renderToday(){
-  const items = ECW_DATA.filter(w => {
+  const items = DATA.filter(w => {
     const d = daysUntil(w.weekOf);
     return d >= -7 && d <= 14;
   }).sort((a,b) => parseDate(a.weekOf) - parseDate(b.weekOf));
@@ -163,12 +299,12 @@ function renderToday(){
 }
 
 function renderAll(){
-  let items = ECW_DATA.slice().sort((a,b) => parseDate(b.weekOf) - parseDate(a.weekOf));
+  let items = DATA.slice().sort((a,b) => parseDate(b.weekOf) - parseDate(a.weekOf));
   if (state.search.trim()) {
     const q = state.search.toLowerCase();
     items = items.filter(w =>
       (w.title || '').toLowerCase().includes(q) ||
-      Object.values(w.platforms).some(v => v && v.toLowerCase().includes(q))
+      Object.values(w.platforms).some(p => p && p.father.toLowerCase().includes(q))
     );
   }
   const searchBox = `<input class="search" type="text" placeholder="Search by father, title, or content..." value="${state.search}" id="search-input" />`;
@@ -182,6 +318,27 @@ function render(){
   const content = document.getElementById('content');
   content.innerHTML = state.tab === 'today' ? renderToday() : renderAll();
 
+  content.querySelectorAll('[data-toggle]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      if (e.target.tagName === 'SELECT') return;
+      const idx = parseInt(el.dataset.toggle);
+      if (state.openCards.has(idx)) state.openCards.delete(idx);
+      else state.openCards.add(idx);
+      render();
+    });
+  });
+
+  content.querySelectorAll('select.status-select').forEach(sel => {
+    sel.addEventListener('click', e => e.stopPropagation());
+    sel.addEventListener('change', () => {
+      const w = parseInt(sel.dataset.week);
+      const p = sel.dataset.platform;
+      DATA[w].platforms[p].status = sel.value;
+      saveData();
+      render();
+    });
+  });
+
   const search = document.getElementById('search-input');
   if (search) {
     search.oninput = () => { state.search = search.value; render(); };
@@ -193,6 +350,80 @@ function render(){
 document.querySelectorAll('.tab').forEach(btn => {
   btn.onclick = () => { state.tab = btn.dataset.tab; state.search=''; render(); };
 });
+
+/* ---------- Modal / Add new week ---------- */
+const overlay = document.getElementById('modal-overlay');
+const overrideBtn = document.getElementById('override-toggle-btn');
+const overrideFields = document.getElementById('override-fields');
+let overrideOpen = false;
+
+function buildOverrideFields(){
+  overrideFields.innerHTML = Object.entries(PLATFORM_LABELS).map(([key,[label,day]]) => `
+    <div class="platform-check-row">
+      <input type="checkbox" class="ov-include" data-key="${key}" checked>
+      <span style="flex:1;">${label} <span style="color:var(--text-soft);font-size:12px;">(${day})</span></span>
+      <select class="ov-status" data-key="${key}" style="width:120px;">
+        <option value="created">Created</option>
+        <option value="scheduled">Scheduled</option>
+        <option value="posted">Posted</option>
+      </select>
+    </div>
+  `).join('');
+}
+buildOverrideFields();
+
+overrideBtn.onclick = () => {
+  overrideOpen = !overrideOpen;
+  overrideFields.classList.toggle('open', overrideOpen);
+  overrideBtn.textContent = overrideOpen ? 'Use one status for all platforms' : 'Customize individual platforms instead';
+};
+
+document.getElementById('add-week-btn').onclick = () => {
+  state.editingIndex = null;
+  document.getElementById('modal-title').textContent = 'Add new week';
+  document.getElementById('week-form').reset();
+  overrideOpen = false;
+  overrideFields.classList.remove('open');
+  overrideBtn.textContent = 'Customize individual platforms instead';
+  buildOverrideFields();
+  overlay.classList.add('open');
+};
+
+document.getElementById('modal-cancel').onclick = () => overlay.classList.remove('open');
+overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.remove('open'); });
+
+document.getElementById('week-form').onsubmit = (e) => {
+  e.preventDefault();
+  const weekOf = document.getElementById('f-weekOf').value;
+  const medNum = document.getElementById('f-medNum').value;
+  const title = document.getElementById('f-title').value;
+  const father = document.getElementById('f-father').value;
+  const globalStatus = document.getElementById('f-status').value;
+
+  const platforms = {};
+  if (overrideOpen) {
+    document.querySelectorAll('.ov-include').forEach(chk => {
+      const key = chk.dataset.key;
+      if (chk.checked) {
+        const statusSel = document.querySelector(`.ov-status[data-key="${key}"]`);
+        platforms[key] = { father, status: statusSel.value };
+      } else {
+        platforms[key] = null;
+      }
+    });
+  } else {
+    Object.keys(PLATFORM_LABELS).forEach(key => {
+      platforms[key] = { father, status: globalStatus };
+    });
+  }
+
+  const newWeek = { weekOf, medNum, title, platforms };
+  DATA.push(newWeek);
+  saveData();
+  overlay.classList.remove('open');
+  state.tab = 'all';
+  render();
+};
 
 render();
 </script>
