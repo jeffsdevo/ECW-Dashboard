@@ -10,6 +10,7 @@
     --green-bg:#dcf0e4; --green-text:#1e7d4a; --green-dot:#34a35f;
     --purple-bg:#eee8fb; --purple-text:#5b3aa8; --purple-dot:#7c52d6;
     --red-bg:#fbeaea; --red-text:#a3322f; --red-dot:#c4453f;
+    --gray-bg:#ececea; --gray-text:#6b6657; --gray-dot:#9c9890;
     --accent:#7a5230;
   }
   *{box-sizing:border-box;}
@@ -66,6 +67,7 @@
   .b-posted{background:var(--green-bg);color:var(--green-text);}
   .b-scheduled{background:var(--purple-bg);color:var(--purple-text);}
   .b-created{background:var(--red-bg);color:var(--red-text);}
+  .b-pending{background:var(--gray-bg);color:var(--gray-text);}
   .platform-grid{border-top:1px solid var(--border);padding-top:10px;margin-top:10px;display:none;flex-direction:column;gap:8px;}
   .platform-grid.open{display:flex;}
   .prow{display:flex;justify-content:space-between;font-size:13px;align-items:center;gap:8px;flex-wrap:wrap;}
@@ -80,6 +82,7 @@
   .s-posted{background:var(--green-bg);color:var(--green-text);}
   .s-scheduled{background:var(--purple-bg);color:var(--purple-text);}
   .s-created{background:var(--red-bg);color:var(--red-text);}
+  .s-pending{background:var(--gray-bg);color:var(--gray-text);}
   .remove-platform-btn{
     background:none;border:none;color:var(--text-soft);font-size:16px;line-height:1;
     cursor:pointer;padding:0 2px;font-family:inherit;
@@ -97,6 +100,7 @@
   .dot-green{background:var(--green-dot);}
   .dot-purple{background:var(--purple-dot);}
   .dot-red{background:var(--red-dot);}
+  .dot-gray{background:var(--gray-dot);}
   footer{text-align:center;color:var(--text-soft);font-size:12px;margin-top:40px;}
 
   /* Modal */
@@ -143,6 +147,7 @@
     <span><span class="dot dot-green"></span>Posted</span>
     <span><span class="dot dot-purple"></span>Scheduled</span>
     <span><span class="dot dot-red"></span>Created</span>
+    <span><span class="dot dot-gray"></span>Pending</span>
   </div>
 
   <div class="tab-row">
@@ -181,7 +186,8 @@
       <div class="field">
         <label for="f-status">Status for all platforms</label>
         <select id="f-status">
-          <option value="created">Created</option>
+          <option value="pending">Pending</option>
+          <option value="created" selected>Created</option>
           <option value="scheduled">Scheduled</option>
           <option value="posted">Posted</option>
         </select>
@@ -209,7 +215,7 @@ const PLATFORM_LABELS = {
   carousel: ['IG Carousel','Thu 7pm'],
   facebookReflection: ['Facebook Reflection','Fri 10am']
 };
-const STATUS_LABEL = {posted:'Posted', scheduled:'Scheduled', created:'Created'};
+const STATUS_LABEL = {posted:'Posted', scheduled:'Scheduled', created:'Created', pending:'Pending'};
 const STORAGE_KEY = 'ecw-dashboard-data';
 const VERSION_KEY = 'ecw-dashboard-data-version';
 const DATA_VERSION = (typeof ECW_DATA_VERSION !== 'undefined') ? ECW_DATA_VERSION : 1;
@@ -247,16 +253,17 @@ function fmtDate(dateStr){
 
 function weekOverallStatus(week){
   const vals = Object.values(week.platforms).filter(p => p).map(p => p.status);
-  if (!vals.length) return 'created';
+  if (!vals.length) return 'pending';
   if (vals.every(v => v === 'posted')) return 'posted';
   if (vals.some(v => v === 'posted' || v === 'scheduled')) return 'scheduled';
-  return 'created';
+  if (vals.some(v => v === 'created')) return 'created';
+  return 'pending';
 }
 
 function weekStatusBreakdown(week){
   const vals = Object.values(week.platforms).filter(p => p).map(p => p.status);
-  if (!vals.length) return { text: 'No platforms', cls: 'created' };
-  const counts = { posted:0, scheduled:0, created:0 };
+  if (!vals.length) return { text: 'No platforms', cls: 'pending' };
+  const counts = { posted:0, scheduled:0, created:0, pending:0 };
   vals.forEach(v => counts[v]++);
   const uniqueStatuses = Object.keys(counts).filter(k => counts[k] > 0);
   if (uniqueStatuses.length === 1) {
@@ -266,9 +273,10 @@ function weekStatusBreakdown(week){
   if (counts.posted) parts.push(`${counts.posted} posted`);
   if (counts.scheduled) parts.push(`${counts.scheduled} scheduled`);
   if (counts.created) parts.push(`${counts.created} created`);
+  if (counts.pending) parts.push(`${counts.pending} pending`);
   // badge color reflects the least-progressed status present, so a mixed week
   // doesn't look more "done" than it is
-  const cls = counts.created ? 'created' : (counts.scheduled ? 'scheduled' : 'posted');
+  const cls = counts.pending ? 'pending' : (counts.created ? 'created' : (counts.scheduled ? 'scheduled' : 'posted'));
   return { text: parts.join(', '), cls };
 }
 
@@ -276,7 +284,7 @@ function renderMetrics(){
   const total = DATA.length;
   const posted = DATA.filter(w => weekOverallStatus(w) === 'posted').length;
   const upcoming = DATA.filter(w => { const d = daysUntil(w.weekOf); return d >= -7 && d <= 14; }).length;
-  const notScheduled = DATA.filter(w => weekOverallStatus(w) === 'created').length;
+  const notScheduled = DATA.filter(w => ['created','pending'].includes(weekOverallStatus(w))).length;
   document.getElementById('metrics').innerHTML = `
     <div class="metrics">
       <div class="metric"><div class="num">${total}</div><div class="lbl">Weeks tracked</div></div>
@@ -295,6 +303,7 @@ function platformRows(week, weekIdx){
       <span class="pright">
         <span class="pval">${p.father}</span>
         <select class="status-select s-${p.status}" data-week="${weekIdx}" data-platform="${key}">
+          <option value="pending" ${p.status==='pending'?'selected':''}>Pending</option>
           <option value="created" ${p.status==='created'?'selected':''}>Created</option>
           <option value="scheduled" ${p.status==='scheduled'?'selected':''}>Scheduled</option>
           <option value="posted" ${p.status==='posted'?'selected':''}>Posted</option>
@@ -453,7 +462,8 @@ function buildOverrideFields(){
       <input type="checkbox" class="ov-include" data-key="${key}" checked>
       <span style="flex:1;">${label} <span style="color:var(--text-soft);font-size:12px;">(${day})</span></span>
       <select class="ov-status" data-key="${key}" style="width:120px;">
-        <option value="created">Created</option>
+        <option value="pending">Pending</option>
+        <option value="created" selected>Created</option>
         <option value="scheduled">Scheduled</option>
         <option value="posted">Posted</option>
       </select>

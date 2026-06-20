@@ -1,4 +1,4 @@
-const ECW_DATA_VERSION = 6;
+const ECW_DATA_VERSION = 7;
 const ECW_DATA = [
   {
     "weekOf": "2026-02-23",
