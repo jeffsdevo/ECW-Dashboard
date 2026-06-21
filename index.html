@@ -208,7 +208,7 @@ const PLATFORM_LABELS = {
   youtube: ['YouTube Shorts','Sun'],
   morningReading: ['Morning Reading','Mon 7am'],
   quoteCard: ['IG Quote Card','Mon 7-8pm'],
-  linkedinNewsletter: ['LinkedIn Newsletter','Mon'],
+  linkedinNewsletter: ['LinkedIn Newsletter','Mon 9am'],
   linkedin: ['LinkedIn','Wed 9am'],
   facebookDeepDive: ['Facebook Deep Dive','Wed 9am'],
   instagramReel: ['Instagram Reel','Thu 7pm'],
@@ -298,10 +298,11 @@ function platformRows(week, weekIdx){
   const rows = Object.entries(PLATFORM_LABELS).map(([key, [label, day]]) => {
     const p = week.platforms[key];
     if (!p) return '';
+    const displayText = p.note ? p.note : p.father;
     return `<div class="prow">
       <span class="pname">${label} <span class="pday">(${day})</span></span>
       <span class="pright">
-        <span class="pval">${p.father}</span>
+        <span class="pval">${displayText || '—'}</span>
         <select class="status-select s-${p.status}" data-week="${weekIdx}" data-platform="${key}">
           <option value="pending" ${p.status==='pending'?'selected':''}>Pending</option>
           <option value="created" ${p.status==='created'?'selected':''}>Created</option>
@@ -313,17 +314,36 @@ function platformRows(week, weekIdx){
     </div>`;
   }).join('');
 
+  // Custom (non-standard) platform entries the user has typed in by hand
+  const customRows = Object.entries(week.platforms)
+    .filter(([key]) => !PLATFORM_LABELS[key])
+    .map(([key, p]) => {
+      if (!p) return '';
+      const displayText = p.note ? p.note : p.father;
+      return `<div class="prow">
+        <span class="pname">${p.customLabel || key} ${p.customDay ? `<span class="pday">(${p.customDay})</span>` : ''}</span>
+        <span class="pright">
+          <span class="pval">${displayText || '—'}</span>
+          <select class="status-select s-${p.status}" data-week="${weekIdx}" data-platform="${key}">
+            <option value="pending" ${p.status==='pending'?'selected':''}>Pending</option>
+            <option value="created" ${p.status==='created'?'selected':''}>Created</option>
+            <option value="scheduled" ${p.status==='scheduled'?'selected':''}>Scheduled</option>
+            <option value="posted" ${p.status==='posted'?'selected':''}>Posted</option>
+          </select>
+          <button type="button" class="remove-platform-btn" data-week="${weekIdx}" data-platform="${key}" title="Remove this platform">&times;</button>
+        </span>
+      </div>`;
+    }).join('');
+
   const missing = Object.entries(PLATFORM_LABELS).filter(([key]) => !week.platforms[key]);
-  let addRow = '';
-  if (missing.length) {
-    addRow = `<div class="prow add-platform-row">
+  let addRow = `<div class="prow add-platform-row">
       <select class="add-platform-select" data-week="${weekIdx}" style="flex:1;">
         <option value="">+ Add a platform to this week...</option>
         ${missing.map(([key,[label,day]]) => `<option value="${key}">${label} (${day})</option>`).join('')}
+        <option value="__custom__">+ Custom / other (set your own title, platform, day)</option>
       </select>
     </div>`;
-  }
-  return rows + addRow;
+  return rows + customRows + addRow;
 }
 
 function weekCard(week){
@@ -346,6 +366,22 @@ function weekCard(week){
   </div>`;
 }
 
+function refreshCardInPlace(weekIdx){
+  const grid = document.getElementById('grid-' + weekIdx);
+  if (!grid) { render(); return; } // fallback if card isn't currently in view
+  grid.innerHTML = platformRows(DATA[weekIdx], weekIdx);
+  grid.classList.add('open');
+
+  const card = grid.closest('.card');
+  const badge = card.querySelector('.badge');
+  const breakdown = weekStatusBreakdown(DATA[weekIdx]);
+  badge.className = 'badge b-' + breakdown.cls;
+  badge.textContent = breakdown.text;
+
+  attachPlatformRowHandlers(grid, weekIdx);
+  renderMetrics();
+}
+
 function renderToday(){
   const items = DATA.filter(w => {
     const d = daysUntil(w.weekOf);
@@ -362,7 +398,7 @@ function renderAll(){
     items = items.filter(w =>
       (w.title || '').toLowerCase().includes(q) ||
       (w.medNum || '').toLowerCase().includes(q) ||
-      Object.values(w.platforms).some(p => p && p.father.toLowerCase().includes(q))
+      Object.values(w.platforms).some(p => p && ((p.father && p.father.toLowerCase().includes(q)) || (p.note && p.note.toLowerCase().includes(q))))
     );
   }
   const searchBox = `<input class="search" type="text" placeholder="Search by father, title, volume, or content..." value="${state.search}" id="search-input" />`;
@@ -391,7 +427,21 @@ function render(){
     });
   });
 
-  content.querySelectorAll('select.status-select').forEach(sel => {
+  content.querySelectorAll('.platform-grid[id^="grid-"]').forEach(grid => {
+    const weekIdx = parseInt(grid.id.replace('grid-', ''));
+    attachPlatformRowHandlers(grid, weekIdx);
+  });
+
+  const search = document.getElementById('search-input');
+  if (search) {
+    search.oninput = () => { state.search = search.value; render(); };
+    search.focus();
+    search.setSelectionRange(state.search.length, state.search.length);
+  }
+}
+
+function attachPlatformRowHandlers(scopeEl, weekIdx){
+  scopeEl.querySelectorAll('select.status-select').forEach(sel => {
     sel.addEventListener('click', e => e.stopPropagation());
     sel.addEventListener('change', () => {
       const w = parseInt(sel.dataset.week);
@@ -408,42 +458,46 @@ function render(){
     });
   });
 
-  content.querySelectorAll('.remove-platform-btn').forEach(btn => {
+  scopeEl.querySelectorAll('.remove-platform-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const w = parseInt(btn.dataset.week);
       const p = btn.dataset.platform;
-      const label = PLATFORM_LABELS[p][0];
+      const label = (PLATFORM_LABELS[p] && PLATFORM_LABELS[p][0]) || (DATA[w].platforms[p] && DATA[w].platforms[p].customLabel) || 'this item';
       if (!confirm(`Remove ${label} from this week?`)) return;
-      DATA[w].platforms[p] = null;
+      delete DATA[w].platforms[p];
       saveData();
-      render();
+      refreshCardInPlace(w);
     });
   });
 
-  content.querySelectorAll('.add-platform-select').forEach(sel => {
+  scopeEl.querySelectorAll('.add-platform-select').forEach(sel => {
     sel.addEventListener('click', e => e.stopPropagation());
     sel.addEventListener('change', () => {
       if (!sel.value) return;
       const w = parseInt(sel.dataset.week);
       const key = sel.value;
-      // reuse the first existing platform's father name as the default, since
-      // a week is almost always one father across every platform
       const existing = Object.values(DATA[w].platforms).find(p => p);
-      const father = existing ? existing.father : '';
-      DATA[w].platforms[key] = { father, status: 'created' };
+      const defaultFather = existing ? existing.father : '';
+
+      if (key === '__custom__') {
+        const customLabel = prompt('Platform or post type (e.g. "LinkedIn Newsletter", "Podcast clip"):');
+        if (!customLabel) { sel.value = ''; return; }
+        const customDay = prompt('Day / time (optional, e.g. "Mon 9am"):') || '';
+        const note = prompt('Custom title for this post (optional, leave blank to just use the church father name):') || '';
+        const customKey = 'custom_' + Date.now();
+        DATA[w].platforms[customKey] = {
+          father: defaultFather, note, status: 'created',
+          customLabel, customDay
+        };
+      } else {
+        DATA[w].platforms[key] = { father: defaultFather, note: '', status: 'created' };
+      }
       saveData();
       state.openCards.add(w);
-      render();
+      refreshCardInPlace(w);
     });
   });
-
-  const search = document.getElementById('search-input');
-  if (search) {
-    search.oninput = () => { state.search = search.value; render(); };
-    search.focus();
-    search.setSelectionRange(state.search.length, state.search.length);
-  }
 }
 
 document.querySelectorAll('.tab').forEach(btn => {
@@ -506,14 +560,14 @@ document.getElementById('week-form').onsubmit = (e) => {
       const key = chk.dataset.key;
       if (chk.checked) {
         const statusSel = document.querySelector(`.ov-status[data-key="${key}"]`);
-        platforms[key] = { father, status: statusSel.value };
+        platforms[key] = { father, note: '', status: statusSel.value };
       } else {
         platforms[key] = null;
       }
     });
   } else {
     Object.keys(PLATFORM_LABELS).forEach(key => {
-      platforms[key] = { father, status: globalStatus };
+      platforms[key] = { father, note: '', status: globalStatus };
     });
   }
 
