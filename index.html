@@ -88,6 +88,11 @@
     cursor:pointer;padding:0 2px;font-family:inherit;
   }
   .remove-platform-btn:hover{color:var(--red-text);}
+  .edit-week-btn{
+    background:none;border:none;cursor:pointer;padding:0;font-size:13px;
+    opacity:0.4;transition:opacity 0.15s;line-height:1;
+  }
+  .edit-week-btn:hover{opacity:1;}
   .add-platform-row{padding-top:4px;}
   .add-platform-select{
     width:100%;padding:6px 8px;font-size:13px;border:1px dashed var(--border);border-radius:7px;
@@ -354,8 +359,11 @@ function weekCard(week){
   const rows = platformRows(week, weekIdx);
   return `<div class="card">
     <div class="card-head" data-toggle="${weekIdx}" style="cursor:pointer;">
-      <div>
-        <h3>${title}</h3>
+      <div style="flex:1;min-width:0;">
+        <h3 style="display:flex;align-items:center;gap:8px;">
+          ${title}
+          <button type="button" class="edit-week-btn" data-week="${weekIdx}" title="Edit this week">✏️</button>
+        </h3>
         <div class="meta">${week.medNum || ''} ${week.medNum ? '·' : ''} Week of ${fmtDate(week.weekOf)}</div>
       </div>
       <span class="badge b-${breakdown.cls}">${breakdown.text}</span>
@@ -415,6 +423,7 @@ function render(){
   content.querySelectorAll('.card-head[data-toggle]').forEach(headEl => {
     headEl.addEventListener('click', (e) => {
       if (e.target.tagName === 'SELECT') return;
+      if (e.target.closest('.edit-week-btn')) return;
       const idx = parseInt(headEl.dataset.toggle);
       const grid = document.getElementById('grid-' + idx);
       if (state.openCards.has(idx)) {
@@ -424,6 +433,14 @@ function render(){
         state.openCards.add(idx);
         grid.classList.add('open');
       }
+    });
+  });
+
+  content.querySelectorAll('.edit-week-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const idx = parseInt(btn.dataset.week);
+      openEditModal(idx);
     });
   });
 
@@ -532,19 +549,49 @@ overrideBtn.onclick = () => {
   overrideBtn.textContent = overrideOpen ? 'Use one status for all platforms' : 'Customize individual platforms instead';
 };
 
+function openEditModal(idx){
+  const week = DATA[idx];
+  state.editingIndex = idx;
+  document.getElementById('modal-title').textContent = 'Edit week';
+  document.getElementById('modal-save').textContent = 'Save changes';
+  document.getElementById('f-weekOf').value = week.weekOf;
+  document.getElementById('f-medNum').value = week.medNum || '';
+  document.getElementById('f-title').value = week.title || '';
+  // Pre-fill father from first existing platform
+  const existing = Object.values(week.platforms).find(p => p);
+  document.getElementById('f-father').value = existing ? existing.father : '';
+  document.getElementById('f-status').value = 'created';
+  overrideOpen = false;
+  overrideFields.classList.remove('open');
+  overrideBtn.textContent = 'Customize individual platforms instead';
+  // Hide the override section in edit mode — platforms are edited directly on the card
+  overrideBtn.style.display = 'none';
+  overlay.classList.add('open');
+}
+
 document.getElementById('add-week-btn').onclick = () => {
   state.editingIndex = null;
   document.getElementById('modal-title').textContent = 'Add new week';
+  document.getElementById('modal-save').textContent = 'Save week';
   document.getElementById('week-form').reset();
   overrideOpen = false;
   overrideFields.classList.remove('open');
   overrideBtn.textContent = 'Customize individual platforms instead';
+  overrideBtn.style.display = '';
   buildOverrideFields();
   overlay.classList.add('open');
 };
 
-document.getElementById('modal-cancel').onclick = () => overlay.classList.remove('open');
-overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.remove('open'); });
+document.getElementById('modal-cancel').onclick = () => {
+  overlay.classList.remove('open');
+  overrideBtn.style.display = '';
+};
+overlay.addEventListener('click', (e) => {
+  if (e.target === overlay) {
+    overlay.classList.remove('open');
+    overrideBtn.style.display = '';
+  }
+});
 
 document.getElementById('week-form').onsubmit = (e) => {
   e.preventDefault();
@@ -554,29 +601,46 @@ document.getElementById('week-form').onsubmit = (e) => {
   const father = document.getElementById('f-father').value;
   const globalStatus = document.getElementById('f-status').value;
 
-  const platforms = {};
-  if (overrideOpen) {
-    document.querySelectorAll('.ov-include').forEach(chk => {
-      const key = chk.dataset.key;
-      if (chk.checked) {
-        const statusSel = document.querySelector(`.ov-status[data-key="${key}"]`);
-        platforms[key] = { father, note: '', status: statusSel.value };
-      } else {
-        platforms[key] = null;
-      }
+  if (state.editingIndex !== null) {
+    // Edit mode: update only the top-level fields and father name on all platforms
+    // Preserve existing platform statuses and notes
+    const week = DATA[state.editingIndex];
+    week.weekOf = weekOf;
+    week.medNum = medNum;
+    week.title = title;
+    // Update father name on every platform that exists, but don't touch status or note
+    Object.keys(week.platforms).forEach(key => {
+      if (week.platforms[key]) week.platforms[key].father = father;
     });
+    saveData();
+    overlay.classList.remove('open');
+    overrideBtn.style.display = '';
+    render();
   } else {
-    Object.keys(PLATFORM_LABELS).forEach(key => {
-      platforms[key] = { father, note: '', status: globalStatus };
-    });
+    // Add mode: create a full new week
+    const platforms = {};
+    if (overrideOpen) {
+      document.querySelectorAll('.ov-include').forEach(chk => {
+        const key = chk.dataset.key;
+        if (chk.checked) {
+          const statusSel = document.querySelector(`.ov-status[data-key="${key}"]`);
+          platforms[key] = { father, note: '', status: statusSel.value };
+        } else {
+          platforms[key] = null;
+        }
+      });
+    } else {
+      Object.keys(PLATFORM_LABELS).forEach(key => {
+        platforms[key] = { father, note: '', status: globalStatus };
+      });
+    }
+    const newWeek = { weekOf, medNum, title, platforms };
+    DATA.push(newWeek);
+    saveData();
+    overlay.classList.remove('open');
+    state.tab = 'all';
+    render();
   }
-
-  const newWeek = { weekOf, medNum, title, platforms };
-  DATA.push(newWeek);
-  saveData();
-  overlay.classList.remove('open');
-  state.tab = 'all';
-  render();
 };
 
 render();
